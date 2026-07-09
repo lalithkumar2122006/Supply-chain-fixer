@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Supply Chain Fixer — Multi-Agent Simulation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#0F1319;
+    --panel:#171D26;
+    --panel-2:#1D2530;
+    --border:#262E3A;
+    --text:#E7EBF0;
+    --muted:#7C8898;
+    --amber:#E8A33D;
+    --green:#49C08C;
+    --red:#E8615C;
+    --teal:#3FBFA6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    padding:20px;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-bottom:18px;
+    border-bottom:1px solid var(--border);
+    padding-bottom:16px;
+  }
+  .title-block h1{
+    margin:0;
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:0.3px;
+  }
+  .title-block .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--teal);
+    letter-spacing:2px;
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .title-block p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-size:13px;
+    max-width:480px;
+  }
+
+  .kpis{display:flex;gap:10px;flex-wrap:wrap;}
+  .kpi{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 16px;
+    min-width:96px;
+    text-align:center;
+  }
+  .kpi .val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;}
+  .kpi .lbl{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+  .kpi.good .val{color:var(--green);}
+  .kpi.warn .val{color:var(--amber);}
+  .kpi.bad .val{color:var(--red);}
+
+  /* ---------- Controls ---------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  button{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--panel-2);
+    color:var(--text);
+    padding:9px 14px;
+    cursor:pointer;
+    transition:border-color .15s ease, transform .1s ease;
+  }
+  button:hover{border-color:var(--teal);}
+  button:active{transform:scale(0.97);}
+  button.primary{background:var(--teal);color:#08201B;border-color:var(--teal);}
+  button.primary:hover{filter:brightness(1.08);}
+  button.danger-btn{color:var(--red);}
+  button.warn-btn{color:var(--amber);}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+
+  .divider{width:1px;height:22px;background:var(--border);}
+  .storage-status{font-size:11px;color:var(--muted);}
+  .storage-status.ok{color:var(--green);}
+  .storage-status.err{color:var(--red);}
+  .speed-wrap{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;}
+  input[type=range]{accent-color:var(--teal);}
+
+  /* ---------- Pipeline ---------- */
+  .pipeline{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:22px;
+    margin-bottom:20px;
+  }
+  .flowline{
+    position:absolute;
+    top:46px;
+    height:3px;
+    background:linear-gradient(90deg, var(--border), var(--border));
+    z-index:0;
+    overflow:hidden;
+    border-radius:2px;
+  }
+  .flowline::after{
+    content:'';
+    position:absolute;
+    top:0;left:-40%;
+    width:40%;height:100%;
+    background:linear-gradient(90deg, transparent, var(--teal), transparent);
+    animation:flow 1.8s linear infinite;
+  }
+  .flowline.paused::after{animation-play-state:paused;}
+  @keyframes flow{
+    0%{left:-40%;}
+    100%{left:100%;}
+  }
+
+  .node{
+    position:relative;
+    z-index:1;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  .node.fixing{
+    border-color:var(--amber);
+    box-shadow:0 0 0 1px var(--amber), 0 0 18px -4px rgba(232,163,61,0.6);
+  }
+  .node.disrupted{border-color:var(--red);}
+  .node-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .node-head .name{font-weight:700;font-size:14px;}
+  .status-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+  .status-dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .status-dot.bad{background:var(--red);box-shadow:0 0 8px var(--red);}
+  .node-role{font-size:11px;color:var(--muted);margin-bottom:12px;min-height:28px;}
+  .metric{margin-bottom:8px;}
+  .metric-top{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;}
+  .metric-top span.v{color:var(--text);font-family:'IBM Plex Mono',monospace;}
+  .bar-track{height:7px;background:var(--panel-2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+  .bar-fill{height:100%;border-radius:4px;background:var(--teal);transition:width .3s ease, background .3s ease;}
+  .node-status-text{
+    margin-top:10px;font-size:10.5px;font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);letter-spacing:0.3px;text-transform:uppercase;
+  }
+
+  /* ---------- Fixer banner ---------- */
+  .fixer-banner{
+    display:flex;align-items:center;gap:12px;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:12px 16px;margin-bottom:20px;
+  }
+  .fixer-banner.active{border-color:var(--amber);box-shadow:0 0 18px -6px rgba(232,163,61,0.5);}
+  .fixer-dot{
+    width:11px;height:11px;border-radius:50%;background:var(--muted);flex-shrink:0;
+  }
+  .fixer-banner.active .fixer-dot{
+    background:var(--amber);box-shadow:0 0 10px var(--amber);
+    animation:pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  .fixer-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'IBM Plex Mono',monospace;}
+  .fixer-text{font-size:13.5px;font-weight:500;}
+  .fixer-banner.active .fixer-text{color:var(--amber);}
+
+  /* ---------- Lower grid: log + chart ---------- */
+  .lower-grid{
+    display:grid;
+    grid-template-columns:1.3fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:880px){ .lower-grid{grid-template-columns:1fr;} .pipeline{grid-template-columns:1fr 1fr;} .flowline{display:none;} }
+
+  .panel-box{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+  }
+  .panel-title{
+    font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;
+    margin-bottom:10px;font-family:'IBM Plex Mono',monospace;
+  }
+  .log{
+    height:270px;overflow-y:auto;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6;
+  }
+  .log-entry{padding:3px 0;border-bottom:1px dashed rgba(255,255,255,0.04);}
+  .log-entry .day{color:var(--muted);margin-right:8px;}
+  .log-entry.disrupt{color:var(--red);}
+  .log-entry.fix{color:var(--amber);}
+  .log-entry.info{color:var(--muted);}
+
+  canvas{width:100%;display:block;}
+
+  .about{
+    margin-top:18px;background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;padding:16px 18px;
+  }
+  .about summary{cursor:pointer;font-weight:600;font-size:13px;list-style:none;}
+  .about summary::-webkit-details-marker{display:none;}
+  .about summary::before{content:'▸ ';color:var(--teal);}
+  .about[open] summary::before{content:'▾ ';}
+  .about-body{margin-top:12px;font-size:13px;color:var(--muted);line-height:1.7;}
+  .about-body b{color:var(--text);}
+  #history-table td{padding:7px 8px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;}
+  #history-table tbody tr:hover{background:var(--panel-2);}
+  .del-run{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 6px;}
+  .del-run:hover{color:var(--red);}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title-block">
+    <div class="eyebrow">Autonomous Operations</div>
+    <h1>Supply Chain Fixer</h1>
+    <p>Four autonomous agents operate a Supplier → Manufacturer → Distributor → Retailer chain. A fifth agent, the Fixer, continuously monitors for disruptions and repairs the chain in real time. Run history is saved automatically.</p>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="val mono" id="kpi-day">0</div><div class="lbl">Day</div></div>
+    <div class="kpi" id="kpi-service-box"><div class="val mono" id="kpi-service">100%</div><div class="lbl">Service Level</div></div>
+    <div class="kpi"><div class="val mono" id="kpi-fixes">0</div><div class="lbl">Fixes Applied</div></div>
+    <div class="kpi" id="kpi-stockout-box"><div class="val mono" id="kpi-stockout">0</div><div class="lbl">Units Stocked Out</div></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="primary" id="btn-play">▶ Start</button>
+  <button id="btn-step">Step +1 Day</button>
+  <button id="btn-reset">Reset</button>
+  <div class="divider"></div>
+  <div class="speed-wrap">Speed <input type="range" id="speed" min="200" max="1600" value="800"></div>
+  <div class="divider"></div>
+  <button class="danger-btn" id="btn-supplier-delay">⚡ Trigger Supplier Delay</button>
+  <button class="danger-btn" id="btn-demand-spike">⚡ Trigger Demand Spike</button>
+  <button class="danger-btn" id="btn-distributor-breakdown">⚡ Trigger Distributor Breakdown</button>
+  <button class="danger-btn" id="btn-quality-defect">⚡ Trigger Quality Defect</button>
+  <div class="divider"></div>
+  <button id="btn-save-run">💾 Save Run</button>
+  <span class="storage-status mono" id="storage-status">Storage: checking…</span>
+</div>
+
+<div class="pipeline" id="pipeline">
+  <div class="flowline" id="flow1" style="left:calc(12.5% + 6px); width:calc(25% - 12px);"></div>
+  <div class="flowline" id="flow2" style="left:calc(37.5% + 6px); width:calc(25% - 12px);"></div>
+  <div class="flowline" id="flow3" style="left:calc(62.5% + 6px); width:calc(25% - 12px);"></div>
+
+  <div class="node" id="node-supplier">
+    <div class="node-head"><span class="name">🏭 Supplier</span><span class="status-dot" id="dot-supplier"></span></div>
+    <div class="node-role">Produces raw material at fixed capacity.</div>
+    <div class="metric">
+      <div class="metric-top"><span>Output</span><span class="v" id="m-supplier-out">0 /day</span></div>
+      <div class="bar-track"><div class="bar-fill" id="bar-supplier-out" style="width:100%"></div></div>
+    </div>
+    <div class="node-status-text" id="status-supplier">MONITORING</div>
+  </div>
+
+  <div class="node" id="node-manufacturer">
+    <div class="node-head"><span class="name">⚙️ Manufacturer</span><span class="status-dot" id="dot-manufacturer"></span></div>
+    <div class="node-role">Converts raw material into finished goods.</div>
+    <div class="metric">
+      <div class="metric-top"><span>Raw Stock</span><span class="v" id="m-man-raw">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="bar-man-raw"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-top"><span>Finished Stock</span><span class="v" id="m-man-fin">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="bar-man-fin"></div></div>
+    </div>
+    <div class="node-status-text" id="status-manufacturer">MONITORING</div>
+  </div>
+
+  <div class="node" id="node-distributor">
+    <div class="node-head"><span class="name">🚚 Distributor</span><span class="status-dot" id="dot-distributor"></span></div>
+    <div class="node-role">Transports finished goods to the retailer.</div>
+    <div class="metric">
+      <div class="metric-top"><span>Buffer Stock</span><span class="v" id="m-dist-inv">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="bar-dist-inv"></div></div>
+    </div>
+    <div class="node-status-text" id="status-distributor">MONITORING</div>
+  </div>
+
+  <div class="node" id="node-retailer">
+    <div class="node-head"><span class="name">🏪 Retailer</span><span class="status-dot" id="dot-retailer"></span></div>
+    <div class="node-role">Sells to customers; absorbs demand swings.</div>
+    <div class="metric">
+      <div class="metric-top"><span>Inventory</span><span class="v" id="m-ret-inv">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="bar-ret-inv"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-top"><span>Demand Today</span><span class="v" id="m-ret-dem">0</span></div>
+    </div>
+    <div class="node-status-text" id="status-retailer">MONITORING</div>
+  </div>
+</div>
+
+<div class="fixer-banner" id="fixer-banner">
+  <div class="fixer-dot" id="fixer-dot"></div>
+  <div>
+    <div class="fixer-label">🛠 Fixer Agent</div>
+    <div class="fixer-text" id="fixer-text">Monitoring the chain — no issues detected.</div>
+  </div>
+</div>
+
+<div class="lower-grid">
+  <div class="panel-box">
+    <div class="panel-title">Event Log</div>
+    <div class="log" id="log"></div>
+  </div>
+  <div class="panel-box">
+    <div class="panel-title">Service Level Over Time</div>
+    <canvas id="chart" height="150"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--teal)"></i>Service Level %</span>
+      <span><i style="background:var(--red)"></i>Disruption</span>
+      <span><i style="background:var(--amber)"></i>Fixer Action</span>
+    </div>
+  </div>
+</div>
+
+<div class="panel-box" style="margin-top:18px;">
+  <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>Saved Run History</span>
+    <span class="mono" id="history-count" style="color:var(--muted);font-size:11px;text-transform:none;letter-spacing:0;">0 runs</span>
+  </div>
+  <div id="history-empty" style="font-size:12.5px;color:var(--muted);padding:6px 0;">No runs saved yet. Click "Save Run" to record the current session.</div>
+  <table id="history-table" style="width:100%;border-collapse:collapse;font-size:12.5px;display:none;">
+    <thead>
+      <tr style="text-align:left;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;">
+        <th style="padding:6px 8px;">Saved</th>
+        <th style="padding:6px 8px;">Days Run</th>
+        <th style="padding:6px 8px;">Avg Service</th>
+        <th style="padding:6px 8px;">Fixes</th>
+        <th style="padding:6px 8px;">Stockouts</th>
+        <th style="padding:6px 8px;"></th>
+      </tr>
+    </thead>
+    <tbody id="history-body"></tbody>
+  </table>
+</div>
+
+<details class="about">
+  <summary>About this simulation — agent roles &amp; fixer logic</summary>
+  <div class="about-body">
+    <b>Supplier</b> produces raw material each day at a fixed capacity, and can suffer a <b>delay disruption</b> that cuts its output.<br>
+    <b>Manufacturer</b> converts raw material into finished goods and can suffer a <b>quality defect</b> that wastes part of a day's production.<br>
+    <b>Distributor</b> moves finished goods toward the retailer and can suffer a <b>breakdown</b> that cuts its shipping capacity.<br>
+    <b>Retailer</b> sells to customers against daily demand, which can suddenly <b>spike</b> and outstrip inventory.<br><br>
+    The <b>Fixer agent</b> runs after every other agent each day. It inspects each node's state and, if it finds a problem, applies one of four fixed responses: switch to a backup supplier, expedite a raw-material shipment, reroute a shipment through an alternate carrier, or emergency-restock the retailer from distributor buffer stock. Every fix is logged with the day it happened and the reasoning behind it, so the log doubles as an audit trail for the presentation.
+  </div>
+</details>
+
+<script>
+(function(){
+  // ---------------- State ----------------
+  const state = {
+    day: 0,
+    running: false,
+    speed: 800,
+    timer: null,
+    serviceHistory: [],
+    markerHistory: [], // 'fix' | 'disrupt' | null, aligned with serviceHistory
+    fixCount: 0,
+    stockoutTotal: 0,
+    serviceSum: 0,
+    serviceCount: 0,
+    storageOk: false,
+  };
+
+  function freshAgents(){
+    return {
+      supplier: { capacity: 50, disruptedTicks: 0 },
+      manufacturer: { raw: 100, rawCap: 220, finished: 80, finCap: 160, prodRate: 45, defectTicks: 0 },
+      distributor: { inv: 60, cap: 180, shipCap: 45, breakdownTicks: 0 },
+      retailer: { inv: 55, cap: 130, baseDemand: 38, demandSpikeTicks: 0 },
+    };
+  }
+  let agents = freshAgents();
+
+  const pending = { supplierDelay:false, demandSpike:false, distributorBreakdown:false, qualityDefect:false };
+
+  // ---------------- DOM refs ----------------
+  const el = id => document.getElementById(id);
+  const logEl = el('log');
+  const fixerBanner = el('fixer-banner');
+  const fixerText = el('fixer-text');
+  const flows = [el('flow1'), el('flow2'), el('flow3')];
+
+  function setBar(barId, pct, colorVar){
+    const bar = el(barId);
+    bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if(colorVar) bar.style.background = colorVar;
+  }
+  function setDot(id, level){ // 'ok' | 'warn' | 'bad'
+    const d = el(id);
+    d.className = 'status-dot' + (level==='warn' ? ' warn' : level==='bad' ? ' bad' : '');
+  }
+  function setNodeClass(nodeId, {fixing=false, disrupted=false}={}){
+    const n = el(nodeId);
+    n.classList.toggle('fixing', fixing);
+    n.classList.toggle('disrupted', disrupted && !fixing);
+  }
+
+  function log(text, type){
+    const div = document.createElement('div');
+    div.className = 'log-entry ' + (type||'info');
+    div.innerHTML = `<span class="day">Day ${state.day.toString().padStart(3,'0')}</span>${text}`;
+    logEl.prepend(div);
+    while(logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
+  }
+
+  // ---------------- Simulation tick ----------------
+  function tick(){
+    state.day++;
+    let fixesThisTick = [];
+    let disruptedThisTick = false;
+
+    // --- random disruption chance (small, on top of manual triggers) ---
+    if(Math.random() < 0.05 && !pending.supplierDelay && !pending.demandSpike && !pending.distributorBreakdown && !pending.qualityDefect){
+      const roll = Math.random();
+      if(roll < 0.25) pending.supplierDelay = true;
+      else if(roll < 0.5) pending.demandSpike = true;
+      else if(roll < 0.75) pending.distributorBreakdown = true;
+      else pending.qualityDefect = true;
+    }
+
+    // --- apply manual/random disruption triggers as fresh events ---
+    if(pending.supplierDelay){
+      agents.supplier._disrupted = true;
+      agents.supplier.disruptedTicks = 3;
+      log('⚠ Disruption: Supplier hit by a shipping delay — output cut sharply.', 'disrupt');
+      disruptedThisTick = true;
+      pending.supplierDelay = false;
+    }
+    if(pending.demandSpike){
+      agents.retailer.demandSpikeTicks = 2;
+      log('⚠ Disruption: Sudden demand spike at the Retailer.', 'disrupt');
+      disruptedThisTick = true;
+      pending.demandSpike = false;
+    }
+    if(pending.distributorBreakdown){
+      agents.distributor._disrupted = true;
+      agents.distributor.breakdownTicks = 3;
+      log('⚠ Disruption: Distributor vehicle breakdown — shipping capacity cut.', 'disrupt');
+      disruptedThisTick = true;
+      pending.distributorBreakdown = false;
+    }
+    if(pending.qualityDefect){
+      agents.manufacturer.defectTicks = 2;
+      log('⚠ Disruption: Quality defect at Manufacturer — part of production wasted.', 'disrupt');
+      disruptedThisTick = true;
+      pending.qualityDefect = false;
+    }
+
+    // ============ 1. SUPPLIER AGENT ============
+    const sup = agents.supplier;
+    let supplierOutput = sup.capacity;
+    let supplierDisrupted = sup.disruptedTicks > 0;
+    if(supplierDisrupted){
+      supplierOutput = Math.round(sup.capacity * 0.25);
+      sup.disruptedTicks--;
+    }
+
+    // ============ 2. MANUFACTURER AGENT ============
+    const man = agents.manufacturer;
+    man.raw = Math.min(man.rawCap, man.raw + supplierOutput);
+    let manDisrupted = man.defectTicks > 0;
+    let effectiveProdRate = man.prodRate;
+    if(manDisrupted){
+      effectiveProdRate = Math.round(man.prodRate * 0.4);
+      man.defectTicks--;
+    }
+    let produced = Math.min(man.raw, effectiveProdRate, man.finCap - man.finished);
+    produced = Math.max(0, produced);
+    man.raw -= produced;
+    man.finished += produced;
+    let rawLow = man.raw < man.rawCap * 0.15;
+
+    // ============ 3. DISTRIBUTOR AGENT ============
+    const dist = agents.distributor;
+    let distDisrupted = dist.breakdownTicks > 0;
+    let shipCapacity = distDisrupted ? Math.round(dist.shipCap * 0.3) : dist.shipCap;
+    if(distDisrupted) dist.breakdownTicks--;
+    let shippedIn = Math.min(man.finished, shipCapacity, dist.cap - dist.inv);
+    shippedIn = Math.max(0, shippedIn);
+    man.finished -= shippedIn;
+    dist.inv += shippedIn;
+
+    // ============ 4. RETAILER AGENT ============
+    const ret = agents.retailer;
+    let demandSpikeActive = ret.demandSpikeTicks > 0;
+    let demand = ret.baseDemand + (demandSpikeActive ? Math.round(ret.baseDemand * 1.1) : 0);
+    if(demandSpikeActive) ret.demandSpikeTicks--;
+
+    // replenish retailer from distributor buffer
+    let replen = Math.min(dist.inv, ret.cap - ret.inv, Math.round(dist.shipCap*0.8));
+    replen = Math.max(0, replen);
+    dist.inv -= replen;
+    ret.inv += replen;
+
+    let fulfilled = Math.min(ret.inv, demand);
+    let shortfall = demand - fulfilled;
+    ret.inv -= fulfilled;
+    let retailerStockout = shortfall > 0;
+    if(retailerStockout) state.stockoutTotal += shortfall;
+
+    // ============ 5. FIXER AGENT ============
+    let fixerActive = false;
+    let fixTargets = { supplier:false, manufacturer:false, distributor:false, retailer:false };
+
+    if(supplierDisrupted){
+      fixerActive = true; fixTargets.supplier = true;
+      const boost = Math.round(sup.capacity*0.35);
+      man.raw = Math.min(man.rawCap, man.raw + boost);
+      fixesThisTick.push('Switched Supplier to a backup source — recovered ' + boost + ' units of raw material.');
+    }
+    if(rawLow && !supplierDisrupted){
+      fixerActive = true; fixTargets.manufacturer = true;
+      const emergency = Math.round(man.rawCap*0.2);
+      man.raw = Math.min(man.rawCap, man.raw + emergency);
+      fixesThisTick.push('Expedited a raw-material shipment to Manufacturer (+' + emergency + ' units) — buffer was critically low.');
+    }
+    if(distDisrupted){
+      fixerActive = true; fixTargets.distributor = true;
+      const boost = Math.round(dist.shipCap*0.4);
+      const move = Math.min(man.finished, boost);
+      man.finished -= move; dist.inv += move;
+      fixesThisTick.push('Rerouted shipment through an alternate carrier — recovered ' + move + ' units of throughput.');
+    }
+    if(retailerStockout){
+      fixerActive = true; fixTargets.retailer = true;
+      const pull = Math.min(shortfall, dist.inv);
+      dist.inv -= pull;
+      ret.inv += pull;
+      const stillShort = shortfall - pull;
+      fulfilled += pull;
+      shortfall = stillShort;
+      fixesThisTick.push('Emergency-restocked Retailer from Distributor buffer (+' + pull + ' units) to absorb demand spike.');
+    }
+
+    if(fixesThisTick.length){
+      state.fixCount += fixesThisTick.length;
+      fixesThisTick.forEach(t => log('🛠 Fixer: ' + t, 'fix'));
+    }
+
+    let serviceLevel = Math.round((fulfilled / demand) * 100);
+    serviceLevel = isFinite(serviceLevel) ? serviceLevel : 100;
+
+    // ---- push history ----
+    state.serviceSum += serviceLevel;
+    state.serviceCount += 1;
+    state.serviceHistory.push(serviceLevel);
+    state.markerHistory.push(fixerActive ? 'fix' : (disruptedThisTick ? 'disrupt' : null));
+    if(state.serviceHistory.length > 60){ state.serviceHistory.shift(); state.markerHistory.shift(); }
+
+    render({
+      supplierOutput, supplierDisrupted,
+      manRaw:man.raw, manFinished:man.finished, rawLow, manDisrupted,
+      distInv:dist.inv, distDisrupted,
+      retInv:ret.inv, demand, retailerStockout,
+      fixerActive, fixTargets, fixesThisTick, serviceLevel
+    });
+  }
+
+  // ---------------- Render ----------------
+  function render(s){
+    el('kpi-day').textContent = state.day;
+    const svEl = el('kpi-service'), svBox = el('kpi-service-box');
+    svEl.textContent = s.serviceLevel + '%';
+    svBox.className = 'kpi ' + (s.serviceLevel>=90?'good':s.serviceLevel>=70?'warn':'bad');
+    el('kpi-fixes').textContent = state.fixCount;
+    const soBox = el('kpi-stockout-box');
+    el('kpi-stockout').textContent = state.stockoutTotal;
+    soBox.className = 'kpi ' + (state.stockoutTotal===0?'good':state.stockoutTotal<40?'warn':'bad');
+
+    // Supplier node
+    el('m-supplier-out').textContent = s.supplierOutput + ' /day';
+    setBar('bar-supplier-out', (s.supplierOutput/agents.supplier.capacity)*100, s.supplierDisrupted?'var(--red)':'var(--teal)');
+    setDot('dot-supplier', s.supplierDisrupted?'bad':'ok');
+    setNodeClass('node-supplier', {fixing:s.fixTargets.supplier, disrupted:s.supplierDisrupted});
+    el('status-supplier').textContent = s.supplierDisrupted ? 'DELAYED' : 'OK';
+
+    // Manufacturer node
+    el('m-man-raw').textContent = Math.round(s.manRaw);
+    setBar('bar-man-raw', (s.manRaw/agents.manufacturer.rawCap)*100, s.rawLow?'var(--amber)':'var(--teal)');
+    el('m-man-fin').textContent = Math.round(s.manFinished);
+    setBar('bar-man-fin', (s.manFinished/agents.manufacturer.finCap)*100, 'var(--teal)');
+    setDot('dot-manufacturer', s.manDisrupted?'bad':s.rawLow?'warn':'ok');
+    setNodeClass('node-manufacturer', {fixing:s.fixTargets.manufacturer, disrupted:s.manDisrupted||s.rawLow});
+    el('status-manufacturer').textContent = s.manDisrupted ? 'QUALITY DEFECT' : s.rawLow ? 'LOW RAW STOCK' : 'OK';
+
+    // Distributor node
+    el('m-dist-inv').textContent = Math.round(s.distInv);
+    setBar('bar-dist-inv', (s.distInv/agents.distributor.cap)*100, s.distDisrupted?'var(--red)':'var(--teal)');
+    setDot('dot-distributor', s.distDisrupted?'bad':'ok');
+    setNodeClass('node-distributor', {fixing:s.fixTargets.distributor, disrupted:s.distDisrupted});
+    el('status-distributor').textContent = s.distDisrupted ? 'BREAKDOWN' : 'OK';
+
+    // Retailer node
+    el('m-ret-inv').textContent = Math.round(s.retInv);
+    setBar('bar-ret-inv', (s.retInv/agents.retailer.cap)*100, s.retailerStockout?'var(--red)':'var(--teal)');
+    el('m-ret-dem').textContent = s.demand;
+    setDot('dot-retailer', s.retailerStockout?'bad':'ok');
+    setNodeClass('node-retailer', {fixing:s.fixTargets.retailer, disrupted:s.retailerStockout});
+    el('status-retailer').textContent = s.retailerStockout ? 'STOCKOUT' : 'OK';
+
+    // Fixer banner
+    fixerBanner.classList.toggle('active', s.fixerActive);
+    fixerText.textContent = s.fixerActive
+      ? s.fixesThisTick.join(' ')
+      : 'Monitoring the chain — no issues detected.';
+
+    // Flow animation pause state (paused when not running)
+    flows.forEach(f => f.classList.toggle('paused', !state.running));
+
+    drawChart();
+  }
+
+  // ---------------- Chart ----------------
+  const canvas = el('chart');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas(){
+    canvas.width = canvas.clientWidth * devicePixelRatio;
+    canvas.height = 150 * devicePixelRatio;
+  }
+  function drawChart(){
+    resizeCanvas();
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    const data = state.serviceHistory;
+    const markers = state.markerHistory;
+    if(data.length < 2) return;
+    const pad = 8*devicePixelRatio;
+    const stepX = (w - pad*2) / Math.max(1,(data.length-1));
+
+    // gridlines
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    [0,25,50,75,100].forEach(pct=>{
+      const y = h - pad - (pct/100)*(h-pad*2);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    });
+
+    // line
+    ctx.beginPath();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--teal');
+    ctx.lineWidth = 2*devicePixelRatio;
+    data.forEach((v,i)=>{
+      const x = pad + i*stepX;
+      const y = h - pad - (v/100)*(h-pad*2);
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // markers
+    data.forEach((v,i)=>{
+      const mark = markers[i];
+      if(!mark) return;
+      const x = pad + i*stepX;
+      const y = h - pad - (v/100)*(h-pad*2);
+      ctx.beginPath();
+      ctx.fillStyle = mark==='fix' ? '#E8A33D' : '#E8615C';
+      ctx.arc(x,y,3*devicePixelRatio,0,Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // ---------------- Persistent storage (Run History) ----------------
+  const storageStatusEl = el('storage-status');
+  const historyBody = el('history-body');
+  const historyTable = el('history-table');
+  const historyEmpty = el('history-empty');
+  const historyCount = el('history-count');
+
+  function hasStorage(){
+    return typeof window.storage !== 'undefined' && window.storage;
+  }
+
+  async function checkStorage(){
+    if(!hasStorage()){
+      storageStatusEl.textContent = 'Storage: unavailable in this view';
+      storageStatusEl.className = 'storage-status mono err';
+      state.storageOk = false;
+      return;
+    }
+    try{
+      await window.storage.list('run:', false);
+      storageStatusEl.textContent = 'Storage: connected';
+      storageStatusEl.className = 'storage-status mono ok';
+      state.storageOk = true;
+      loadHistory();
+    }catch(err){
+      storageStatusEl.textContent = 'Storage: unavailable in this view';
+      storageStatusEl.className = 'storage-status mono err';
+      state.storageOk = false;
+    }
+  }
+
+  async function saveRun(){
+    if(!state.storageOk){
+      log('Could not save run — storage is unavailable in this view.', 'info');
+      return;
+    }
+    if(state.serviceCount === 0){
+      log('Nothing to save yet — run the simulation for at least one day first.', 'info');
+      return;
+    }
+    const avgService = Math.round(state.serviceSum / state.serviceCount);
+    const summary = {
+      timestamp: Date.now(),
+      days: state.day,
+      avgService,
+      fixes: state.fixCount,
+      stockouts: state.stockoutTotal,
+    };
+    const key = 'run:' + summary.timestamp;
+    try{
+      await window.storage.set(key, JSON.stringify(summary), false);
+      log('Run saved to history (' + summary.days + ' days, ' + avgService + '% avg service level).', 'fix');
+      loadHistory();
+    }catch(err){
+      log('Save failed — storage error.', 'info');
+    }
+  }
+
+  async function loadHistory(){
+    if(!state.storageOk) return;
+    try{
+      const listResult = await window.storage.list('run:', false);
+      const keys = (listResult && listResult.keys) ? listResult.keys : [];
+      const runs = [];
+      for(const k of keys){
+        try{
+          const r = await window.storage.get(k, false);
+          if(r && r.value) runs.push({ key: k, data: JSON.parse(r.value) });
+        }catch(e){ /* skip unreadable key */ }
+      }
+      runs.sort((a,b)=> b.data.timestamp - a.data.timestamp);
+      renderHistory(runs);
+    }catch(err){
+      // silently leave existing table as-is
+    }
+  }
+
+  function renderHistory(runs){
+    historyCount.textContent = runs.length + (runs.length===1 ? ' run' : ' runs');
+    if(runs.length === 0){
+      historyEmpty.style.display = 'block';
+      historyTable.style.display = 'none';
+      return;
+    }
+    historyEmpty.style.display = 'none';
+    historyTable.style.display = 'table';
+    historyBody.innerHTML = '';
+    runs.forEach(run=>{
+      const d = new Date(run.data.timestamp);
+      const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${dateStr}</td>
+        <td>${run.data.days}</td>
+        <td style="color:${run.data.avgService>=90?'var(--green)':run.data.avgService>=70?'var(--amber)':'var(--red)'}">${run.data.avgService}%</td>
+        <td>${run.data.fixes}</td>
+        <td>${run.data.stockouts}</td>
+        <td><button class="del-run" data-key="${run.key}">✕ Delete</button></td>
+      `;
+      historyBody.appendChild(tr);
+    });
+    historyBody.querySelectorAll('.del-run').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          await window.storage.delete(btn.dataset.key, false);
+          loadHistory();
+        }catch(e){ /* no-op */ }
+      });
+    });
+  }
+
+  el('btn-save-run').addEventListener('click', saveRun);
+
+  // ---------------- Controls ----------------
+  const btnPlay = el('btn-play');
+  function setRunning(run){
+    state.running = run;
+    btnPlay.textContent = run ? '⏸ Pause' : '▶ Start';
+    if(run){
+      state.timer = setInterval(tick, state.speed);
+    } else {
+      clearInterval(state.timer);
+    }
+    flows.forEach(f => f.classList.toggle('paused', !run));
+  }
+  btnPlay.addEventListener('click', ()=> setRunning(!state.running));
+  el('btn-step').addEventListener('click', ()=>{ if(!state.running) tick(); });
+  el('btn-reset').addEventListener('click', ()=>{
+    setRunning(false);
+    state.day=0; state.serviceHistory=[]; state.markerHistory=[]; state.fixCount=0; state.stockoutTotal=0;
+    state.serviceSum=0; state.serviceCount=0;
+    agents = freshAgents();
+    Object.keys(pending).forEach(k=>pending[k]=false);
+    logEl.innerHTML='';
+    log('Simulation reset.', 'info');
+    render({
+      supplierOutput:agents.supplier.capacity, supplierDisrupted:false,
+      manRaw:agents.manufacturer.raw, manFinished:agents.manufacturer.finished, rawLow:false, manDisrupted:false,
+      distInv:agents.distributor.inv, distDisrupted:false,
+      retInv:agents.retailer.inv, demand:agents.retailer.baseDemand, retailerStockout:false,
+      fixerActive:false, fixTargets:{}, fixesThisTick:[], serviceLevel:100
+    });
+  });
+  el('speed').addEventListener('input', e=>{
+    state.speed = 1800 - parseInt(e.target.value); // invert: slider right = faster
+    if(state.running){ clearInterval(state.timer); state.timer=setInterval(tick, state.speed); }
+  });
+
+  el('btn-supplier-delay').addEventListener('click', ()=> pending.supplierDelay = true);
+  el('btn-demand-spike').addEventListener('click', ()=> pending.demandSpike = true);
+  el('btn-distributor-breakdown').addEventListener('click', ()=> pending.distributorBreakdown = true);
+  el('btn-quality-defect').addEventListener('click', ()=> pending.qualityDefect = true);
+
+  window.addEventListener('resize', drawChart);
+
+  // ---------------- Init ----------------
+  checkStorage();
+  log('Simulation ready. Press Start or Step to begin.', 'info');
+  render({
+    supplierOutput:agents.supplier.capacity, supplierDisrupted:false,
+    manRaw:agents.manufacturer.raw, manFinished:agents.manufacturer.finished, rawLow:false, manDisrupted:false,
+    distInv:agents.distributor.inv, distDisrupted:false,
+    retInv:agents.retailer.inv, demand:agents.retailer.baseDemand, retailerStockout:false,
+    fixerActive:false, fixTargets:{}, fixesThisTick:[], serviceLevel:100
+  });
+})();
+</script>
+</body>
+</html>
