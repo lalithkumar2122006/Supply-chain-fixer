@@ -30,17 +30,7 @@ unless that agent's own state shows the matching problem.
 
 ```
 supply_chain_fixer/
-├── app.py            Flask REST API + serves the frontend
-├── agents.py          Agent classes: Supplier, Manufacturer, Distributor,
-│                       Retailer, Fixer — pure Python, no framework
-├── simulation.py       Orchestrates one shared "day" across all agents,
-│                       and persists state to SQLite after every change
-├── database.py         SQLite schema + CRUD helpers (sessions/events/runs)
-├── templates/index.html   Dashboard page
-├── static/style.css       Dashboard styling
-├── static/app.js          Dashboard logic — calls the REST API below
-└── supply_chain.db     Created automatically on first run
-```
+├── index.html
 
 ### Why a real database matters here
 
@@ -81,7 +71,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Then open **http://127.0.0.1:5000** in a browser.
+
 
 ## Extending it (ideas for going further)
 
