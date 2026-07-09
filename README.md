@@ -127,7 +127,6 @@ Supply-chain-fixer/
 │
 ├── index.html
 ├── README.md
-└── assets/
 ```
 
 ---
